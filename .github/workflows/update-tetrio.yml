@@ -1,0 +1,53 @@
+name: kiaxis
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # UTC 时间,每 15 分钟
+  workflow_dispatch:          # 支持 Actions 页手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch TETR.IO stats
+        env:
+          TETRIO_USER: "doremy"
+        run: |
+          curl -sf -A "tetrio-badge-workflow" "https://ch.tetr.io/api/users/${TETRIO_USER}/summaries/league" -o league.json
+          curl -sf -A "tetrio-badge-workflow" "https://ch.tetr.io/api/users/${TETRIO_USER}/summaries/40l" -o sprint.json
+          curl -sf -A "tetrio-badge-workflow" "https://ch.tetr.io/api/users/${TETRIO_USER}/summaries/blitz" -o blitz.json
+
+      - name: Transform to clean JSON
+        run: |
+          python3 - <<'EOF'
+          import json
+          l = json.load(open('league.json', encoding='utf-8'))['data']
+          s = json.load(open('sprint.json', encoding='utf-8'))['data']
+          b = json.load(open('blitz.json', encoding='utf-8'))['data']
+          ft = (s.get('record') or {}).get('results', {}).get('stats', {}).get('finaltime')
+          bs = (b.get('record') or {}).get('results', {}).get('stats', {}).get('score')
+          out = {
+              'rank': l['rank'],                 # 排位段位,如 x+
+              'tr': round(l['tr']),              # 排位分数 TR
+              'pps': l['pps'],                   # PPS
+              'vs': l['vs'],                     # VS
+              'sprint': (f'{ft/1000:.2f}s' if ft else 'N/A'),   # 40L 最快用时
+              'sprint_rank': s.get('rank'),      # 40L 全球排名
+              'blitz': bs if bs is not None else 'N/A',         # 闪电战分数
+          }
+          json.dump(out, open('tetrio.json', 'w'))
+          print(json.dumps(out))
+          EOF
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tetrio.json
+          git diff --cached --quiet || git commit -m "update tetrio stats"
+          git push
