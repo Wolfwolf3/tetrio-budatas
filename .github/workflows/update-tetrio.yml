@@ -16,7 +16,7 @@ jobs:
 
       - name: Fetch TETR.IO stats
         env:
-          TETRIO_USER: "doremy"
+          TETRIO_USER: "kiaxis"
         run: |
           curl -sf -A "tetrio-badge-workflow" "https://ch.tetr.io/api/users/${TETRIO_USER}/summaries/league" -o league.json
           curl -sf -A "tetrio-badge-workflow" "https://ch.tetr.io/api/users/${TETRIO_USER}/summaries/40l" -o sprint.json
